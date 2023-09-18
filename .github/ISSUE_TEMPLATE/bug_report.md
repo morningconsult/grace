@@ -1,41 +1,24 @@
 ---
 name: Bug Report
-about: You're experiencing an issue with this project that is different than the documented behavior.
+about: You're experiencing an issue that is different than the documented behavior
 ---
 
-#### Summary
-
-(Summarize the bug encountered concisely)
-
-
-#### Steps to reproduce
-
-(How one can reproduce the issue - this is very important)
+**Summary**
+<!-- Summarize the bug encountered concisely -->
 
 
-#### Example Project
-
-(If possible, please create an example project here on GitLab.com that exhibits the problematic behaviour, and link to it here in the bug report)
-
-(If you are using an older version of GitLab, this will also determine whether the bug has been fixed in a more recent version)
+**To reproduce**
+<!-- Steps to reproduce the behavior -->
 
 
-#### What is the current bug behavior?
-
-(What actually happens)
-
-
-#### What is the expected correct behavior?
-
-(What you should see instead)
+**Expected behavior**
+<!-- A clear and concise description of what you expected to happen -->
 
 
-#### Relevant logs and/or screenshots
-
-(Paste any relevant logs - please use code blocks (```) to format console output,
-logs, and code as it's very hard to read otherwise.)
+**Logs/screenshots**
+<!-- If applicable, add logs and/or screenshots to help explain your problem -->
 
 
-#### Possible fixes
+**Additional context**
+<!-- Add any other context about the problem here -->
 
-(If you can, link to the line of code that might be responsible for the problem)
