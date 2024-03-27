@@ -20,7 +20,7 @@ func TestCheckerFunc_CheckHealth(t *testing.T) {
 	called := false
 	wantErr := errors.New("foo")
 
-	f := func(ctx context.Context) error {
+	f := func(context.Context) error {
 		called = true
 		return wantErr
 	}

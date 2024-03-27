@@ -47,7 +47,7 @@ func Example_minimal_with_healthcheck() {
 		w.Write([]byte("hello there"))
 	})
 
-	dbPinger := grace.HealthCheckerFunc(func(ctx context.Context) error {
+	dbPinger := grace.HealthCheckerFunc(func(context.Context) error {
 		// ping a database, etc.
 		return nil
 	})
@@ -99,22 +99,22 @@ func Example_full() {
 		w.Write([]byte("here are the metrics"))
 	})
 
-	dbPinger := grace.HealthCheckerFunc(func(ctx context.Context) error {
+	dbPinger := grace.HealthCheckerFunc(func(context.Context) error {
 		// ping database
 		return nil
 	})
 
-	redisPinger := grace.HealthCheckerFunc(func(ctx context.Context) error {
+	redisPinger := grace.HealthCheckerFunc(func(context.Context) error {
 		// ping redis.
 		return nil
 	})
 
-	bgWorker := func(ctx context.Context) error {
+	bgWorker := func(context.Context) error {
 		// Start some background work
 		return nil
 	}
 
-	otherBackgroundWorker := func(ctx context.Context) error {
+	otherBackgroundWorker := func(context.Context) error {
 		// Start some more background work
 		return nil
 	}

@@ -175,8 +175,10 @@ err := grace.Wait(
   10*time.Second,
   grace.WithWaitForTCP("localhost:6379"), // redis
   grace.WithWaitForTCP("localhost:5432"), // postgres
+  grace.WithWaitForUnix("/tmp/something.sock"), // something on a unix socket
   grace.WithWaitForHTTP("http://localhost:9200"), // elasticsearch
   grace.WithWaitForHTTP("http://localhost:19000/ready"), // envoy sidecar
+  grace.WithWaitForUnixHTTP("/tmp/envoy.sock", "/ready"), // HTTP over unix socket
 )
 if err != nil {
 	log.Fatal(err)

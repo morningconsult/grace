@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/go-cleanhttp"
@@ -74,7 +75,7 @@ func WithWaitLogger(logger *slog.Logger) WaitOption {
 			case httpWaiter:
 				waiter.logger = logger
 				cfg.waiters[i] = waiter
-			case tcpWaiter:
+			case netWaiter:
 				waiter.logger = logger
 				cfg.waiters[i] = waiter
 			}
@@ -108,23 +109,37 @@ var urlRegexp = regexp.MustCompile("^(https?://)?(?P<host>.+):(?P<port>[0-9]+)(.
 // once it is reachable.
 func WithWaitForTCP(addr string) WaitOption {
 	return func(cfg waitConfig) waitConfig {
-		cfg.waiters = append(cfg.waiters,
-			tcpWaiter{
-				addr:   urlRegexp.ReplaceAllString(addr, "$host:$port"),
-				logger: cfg.logger,
-			},
-		)
+		cfg.waiters = append(cfg.waiters, netWaiter{
+			addr:    urlRegexp.ReplaceAllString(addr, "$host:$port"),
+			logger:  cfg.logger,
+			network: "tcp",
+		})
 		return cfg
 	}
 }
 
-type tcpWaiter struct {
-	addr   string
-	logger *slog.Logger
+// WithWaitForUnix makes a new unix waiter that will ping a socket and return
+// once it is reachable. The socketPath must be a valid filepath to the unix
+// socket to connect with.
+func WithWaitForUnix(socketPath string) WaitOption {
+	return func(cfg waitConfig) waitConfig {
+		cfg.waiters = append(cfg.waiters, netWaiter{
+			addr:    socketPath,
+			logger:  cfg.logger,
+			network: "unix",
+		})
+		return cfg
+	}
 }
 
-// Wait waits for something to be listening on the given TCP address.
-func (w tcpWaiter) Wait(ctx context.Context) error {
+type netWaiter struct {
+	addr    string
+	logger  *slog.Logger
+	network string
+}
+
+// Wait waits for something to be listening on the given network and address.
+func (w netWaiter) Wait(ctx context.Context) error {
 	for {
 		if err := checkContextDone(ctx, w.logger, w.addr); err != nil {
 			return err
@@ -133,7 +148,7 @@ func (w tcpWaiter) Wait(ctx context.Context) error {
 		d := net.Dialer{
 			Timeout: 300 * time.Millisecond,
 		}
-		conn, _ := d.DialContext(ctx, "tcp", w.addr)
+		conn, _ := d.DialContext(ctx, w.network, w.addr)
 		if conn != nil {
 			w.logger.DebugContext(ctx, "established connection to address",
 				"address", w.addr,
@@ -152,6 +167,36 @@ func WithWaitForHTTP(url string) WaitOption {
 		cfg.waiters = append(cfg.waiters,
 			httpWaiter{
 				client: cleanhttp.DefaultClient(),
+				logger: cfg.logger,
+				url:    url,
+			},
+		)
+		return cfg
+	}
+}
+
+// WithWaitForUnixHTTP makes a new HTTP waiter that will make GET requests to a unix
+// domain socket and URL path until it returns a non-500 error code. All statuses
+// below 500 mean the dependency is accepting requests, even if the check is unauthorized
+// or invalid.
+func WithWaitForUnixHTTP(socketPath, urlPath string) WaitOption {
+	return func(cfg waitConfig) waitConfig {
+		dialer := net.Dialer{
+			Timeout: 300 * time.Millisecond,
+		}
+
+		transport := cleanhttp.DefaultTransport()
+		transport.DialContext = func(ctx context.Context, _ string, _ string) (net.Conn, error) {
+			return dialer.DialContext(ctx, "unix", socketPath)
+		}
+
+		url := "http://unix/" + strings.TrimPrefix(urlPath, "/")
+
+		cfg.waiters = append(cfg.waiters,
+			httpWaiter{
+				client: &http.Client{
+					Transport: transport,
+				},
 				logger: cfg.logger,
 				url:    url,
 			},
