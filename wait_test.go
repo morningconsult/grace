@@ -5,8 +5,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -38,10 +40,10 @@ func Test_Wait(t *testing.T) {
 			50*time.Millisecond,
 			grace.WithWaitForTCP(addr1),
 			grace.WithWaitForTCP(addr2),
-			grace.WithWaiter(grace.WaiterFunc(func(_ context.Context) error {
+			grace.WithWaiter(grace.WaiterFunc(func(context.Context) error {
 				return nil
 			})),
-			grace.WithWaiterFunc(func(_ context.Context) error {
+			grace.WithWaiterFunc(func(context.Context) error {
 				return nil
 			}),
 			grace.WithWaitLogger(logger),
@@ -74,7 +76,7 @@ func Test_Wait(t *testing.T) {
 
 		var wasCalled bool
 		t.Cleanup(func() { assert.True(t, wasCalled, "wanted handler called") })
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			wasCalled = true
 			// This ensures that statuses < 500 are still considered online.
 			w.WriteHeader(http.StatusUnauthorized)
@@ -133,7 +135,7 @@ func Test_Wait(t *testing.T) {
 		t.Cleanup(func() {
 			assert.True(t, wasCalled, "wanted http server called")
 		})
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			wasCalled = true
 			w.WriteHeader(http.StatusInternalServerError)
 		}))
@@ -161,4 +163,100 @@ func Test_Wait(t *testing.T) {
 		}
 		require.EqualError(t, err, fmt.Sprintf("timed out connecting to %q", wantAddr))
 	})
+
+	t.Run("success unix", func(t *testing.T) {
+		t.Parallel()
+
+		socket := newTestUnixServer(t, http.NotFoundHandler())
+
+		ctx := context.Background()
+		err := grace.Wait(
+			ctx,
+			50*time.Millisecond,
+			grace.WithWaitForUnix(socket),
+		)
+		require.NoError(t, err)
+	})
+
+	t.Run("timeout unix", func(t *testing.T) {
+		t.Parallel()
+
+		socket := filepath.Join(t.TempDir(), "server.sock")
+
+		ctx := context.Background()
+		err := grace.Wait(
+			ctx,
+			50*time.Millisecond,
+			grace.WithWaitForUnix(socket),
+		)
+		require.EqualError(t, err, fmt.Sprintf("timed out connecting to %q", socket))
+	})
+
+	t.Run("success unix http", func(t *testing.T) {
+		t.Parallel()
+
+		var gotRequest bool
+		t.Cleanup(func() {
+			assert.True(t, gotRequest, "wanted unix server to receive request")
+		})
+
+		socket := newTestUnixServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotRequest = true
+			assert.Equal(t, "/foo/bar", r.URL.Path)
+			assert.Empty(t, r.URL.Host)
+
+			w.WriteHeader(http.StatusOK)
+		}))
+
+		ctx := context.Background()
+		err := grace.Wait(
+			ctx,
+			50*time.Millisecond,
+			grace.WithWaitForUnixHTTP(socket, "/foo/bar"),
+		)
+		require.NoError(t, err)
+	})
+
+	t.Run("timeout unix http", func(t *testing.T) {
+		t.Parallel()
+
+		var gotRequest bool
+		t.Cleanup(func() {
+			assert.True(t, gotRequest, "wanted unix server to receive request")
+		})
+
+		socket := newTestUnixServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			gotRequest = true
+			assert.Equal(t, "/foo/bar", r.URL.Path)
+			assert.Empty(t, r.URL.Host)
+
+			w.WriteHeader(http.StatusNotImplemented)
+		}))
+
+		ctx := context.Background()
+		err := grace.Wait(
+			ctx,
+			50*time.Millisecond,
+			grace.WithWaitForUnixHTTP(socket, "/foo/bar"),
+		)
+		require.EqualError(t, err, `timed out connecting to "http://unix/foo/bar"`)
+	})
+}
+
+// newTestUnixServer makes a new unix server with the provided handler, returning
+// the unix socket address.
+func newTestUnixServer(t *testing.T, handler http.Handler) string {
+	t.Helper()
+
+	socket := filepath.Join(t.TempDir(), "server.sock")
+
+	listener, err := net.Listen("unix", socket)
+	require.NoError(t, err)
+
+	ts := httptest.NewUnstartedServer(handler)
+	ts.Listener = listener
+	ts.Start()
+	t.Cleanup(ts.Close)
+
+	return socket
 }

@@ -58,7 +58,7 @@ func TestGrace_Run(t *testing.T) {
 		ctx := context.Background()
 		grc := grace.New(
 			ctx,
-			grace.WithBackgroundJobs(func(ctx context.Context) error {
+			grace.WithBackgroundJobs(func(context.Context) error {
 				return errors.New("wombat")
 			}),
 		)
@@ -87,7 +87,7 @@ func TestGrace_Run(t *testing.T) {
 			ctx,
 			grace.WithHealthCheckServer(
 				healthAddr,
-				grace.WithCheckers(grace.HealthCheckerFunc(func(ctx context.Context) error {
+				grace.WithCheckers(grace.HealthCheckerFunc(func(context.Context) error {
 					checkerWasCalled = true
 					return nil
 				})),

@@ -35,7 +35,7 @@ func newHealthHandler(
 ) http.Handler {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc(livenessEndpoint, func(rw http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc(livenessEndpoint, func(rw http.ResponseWriter, _ *http.Request) {
 		rw.Header().Set("Content-Type", "application/json")
 		io.WriteString(rw, `{"healthy":true}`) //nolint: errcheck
 	})
