@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"regexp"
+	"net/url"
 	"strings"
 	"time"
 
@@ -101,21 +101,54 @@ func WithWaiterFunc(w WaiterFunc) WaitOption {
 	}
 }
 
-// urlRegexp is used to remove any protocol or path that might be present
-// when creating a tcp waiter.
-var urlRegexp = regexp.MustCompile("^(https?://)?(?P<host>.+):(?P<port>[0-9]+)(.*)?")
-
 // WithWaitForTCP makes a new TCP waiter that will ping an address and return
 // once it is reachable.
+//
+// The addr can be a valid URL (as accepted by [net/url]) or a network address
+// in "host:port" form. URLs that do not follow HTTP or HTTPS schemes must
+// specify the port explicitly.
 func WithWaitForTCP(addr string) WaitOption {
 	return func(cfg waitConfig) waitConfig {
 		cfg.waiters = append(cfg.waiters, netWaiter{
-			addr:    urlRegexp.ReplaceAllString(addr, "$host:$port"),
+			addr:    cleanTCPAddr(addr),
 			logger:  cfg.logger,
 			network: "tcp",
 		})
 		return cfg
 	}
+}
+
+func cleanTCPAddr(addr string) string {
+	if hp, ok := hostPortFromURL(addr); ok {
+		return hp
+	}
+
+	return addr
+}
+
+func hostPortFromURL(addr string) (string, bool) {
+	u, err := url.Parse(addr)
+	if err != nil {
+		return "", false
+	}
+
+	if u.Hostname() == "" {
+		return "", false
+	}
+
+	port := u.Port()
+	if u.Port() == "" {
+		switch u.Scheme {
+		case "http":
+			port = "80"
+		case "https":
+			port = "443"
+		default:
+			return "", false
+		}
+	}
+
+	return net.JoinHostPort(u.Hostname(), port), true
 }
 
 // WithWaitForUnix makes a new unix waiter that will ping a socket and return
