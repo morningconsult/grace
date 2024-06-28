@@ -56,15 +56,41 @@ func Test_Wait(t *testing.T) {
 	t.Run("success tcp from url", func(t *testing.T) {
 		t.Parallel()
 
-		urls := []string{
-			"https://" + newTestAddr(t) + "/foo/bar",
-			newTestAddr(t) + "/foo/bar",
-			"https://" + newTestAddr(t),
+		tests := []struct {
+			name string
+			url  string
+		}{
+			{
+				name: "https with path",
+				url:  "https://" + newTestAddr(t) + "/foo/bar",
+			},
+			{
+				name: "https without path",
+				url:  "https://" + newTestAddr(t),
+			},
+			{
+				name: "http with path",
+				url:  "http://" + newTestAddr(t) + "/foo/bar",
+			},
+			{
+				name: "http without path",
+				url:  "http://" + newTestAddr(t),
+			},
+			{
+				name: "host port",
+				url:  newTestAddr(t),
+			},
 		}
-		for _, url := range urls {
-			ctx := context.Background()
-			err := grace.Wait(ctx, 50*time.Millisecond, grace.WithWaitForTCP(url))
-			assert.NoError(t, err)
+
+		for _, tt := range tests {
+			tt := tt
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := context.Background()
+				err := grace.Wait(ctx, 50*time.Millisecond, grace.WithWaitForTCP(tt.url))
+				assert.NoError(t, err)
+			})
 		}
 	})
 
