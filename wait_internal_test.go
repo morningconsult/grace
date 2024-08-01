@@ -1,6 +1,8 @@
 package grace
 
 import (
+	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -39,4 +41,21 @@ func Test_cleanTCPAddr(t *testing.T) {
 			assert.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func Test_httpWaiter_waitOnce_nil_context(t *testing.T) {
+	var w httpWaiter
+
+	res := w.waitOnce(nil) //nolint:staticcheck // nil context is intentional
+	assert.False(t, res.Ok)
+	assert.EqualError(t, res.FatalErr, "net/http: nil Context")
+}
+
+func Test_waitAndRetry(t *testing.T) {
+	ctx := context.Background()
+
+	err := waitAndRetry(ctx, func(context.Context) waitResult {
+		return waitResult{FatalErr: errors.New("oh no")}
+	})
+	assert.EqualError(t, err, "oh no")
 }
