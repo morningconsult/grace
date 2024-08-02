@@ -35,7 +35,7 @@ func (w WaiterFunc) Wait(ctx context.Context) error {
 // Wait can be used to wait for dependent services like sidecar upstreams to
 // be available before proceeding with other parts of an application startup.
 func Wait(ctx context.Context, timeout time.Duration, opts ...WaitOption) error {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	ctx, cancel := context.WithTimeoutCause(ctx, timeout, serrors.Errorf("failed to connect within %s", timeout))
 	defer cancel()
 
 	cfg := waitConfig{
@@ -173,23 +173,32 @@ type netWaiter struct {
 
 // Wait waits for something to be listening on the given network and address.
 func (w netWaiter) Wait(ctx context.Context) error {
-	for {
-		if err := checkContextDone(ctx, w.logger, w.addr); err != nil {
-			return err
-		}
-
-		d := net.Dialer{
-			Timeout: 300 * time.Millisecond,
-		}
-		conn, _ := d.DialContext(ctx, w.network, w.addr)
-		if conn != nil {
-			w.logger.DebugContext(ctx, "established connection to address",
-				"address", w.addr,
-			)
-			defer conn.Close() //nolint:errcheck
-			return nil
-		}
+	d := net.Dialer{
+		Timeout: 300 * time.Millisecond,
 	}
+
+	if err := waitAndRetry(ctx, func(ctx context.Context) waitResult {
+		conn, err := d.DialContext(ctx, w.network, w.addr)
+		if err != nil {
+			w.logger.DebugContext(ctx, "failed to connect to address",
+				"address", w.addr,
+				"network", w.network,
+				"error", err,
+			)
+			return waitResult{Ok: false}
+		}
+		defer conn.Close() //nolint:errcheck
+
+		w.logger.DebugContext(ctx, "established connection to address",
+			"address", w.addr,
+			"network", w.network,
+		)
+		return waitResult{Ok: true}
+	}); err != nil {
+		return serrors.Errorf("connecting to %q: %w", w.addr, err)
+	}
+
+	return nil
 }
 
 // WithWaitForHTTP makes a new HTTP waiter that will make GET requests to a URL
@@ -246,36 +255,78 @@ type httpWaiter struct {
 
 // Wait waits for something to be accepting HTTP requests.
 func (w httpWaiter) Wait(ctx context.Context) error {
-	for {
-		if err := checkContextDone(ctx, w.logger, w.url); err != nil {
-			return err
-		}
+	if err := waitAndRetry(ctx, w.waitOnce); err != nil {
+		return serrors.Errorf("connecting to %q: %w", w.url, err)
+	}
 
-		res, _ := w.client.Get(w.url)
-		if res == nil {
-			continue
-		}
-		res.Body.Close()
+	return nil
+}
 
-		if res.StatusCode < http.StatusInternalServerError {
-			w.logger.DebugContext(ctx, "established connection to address",
-				"address", w.url,
-			)
-			return nil
-		}
+func (w httpWaiter) waitOnce(ctx context.Context) waitResult {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, w.url, nil)
+	if err != nil {
+		return waitResult{FatalErr: serrors.WithStack(err)}
+	}
+
+	res, err := w.client.Do(req)
+	if err != nil {
+		w.logger.DebugContext(ctx, "failed to connect to address",
+			"address", w.url,
+			"error", err,
+		)
+		return waitResult{Ok: false}
+	}
+	res.Body.Close()
+
+	w.logger.DebugContext(ctx, "received status from address",
+		"address", w.url,
+		"http_status", res.StatusCode,
+	)
+	return waitResult{
+		Ok: res.StatusCode < http.StatusInternalServerError,
 	}
 }
 
-// checkContextDone checks if the provided context is done, and returns
-// an error if it is.
-func checkContextDone(ctx context.Context, logger *slog.Logger, addr string) error {
-	select {
-	case <-ctx.Done():
-		logger.DebugContext(ctx, "failed to establish connection to address",
-			"address", addr,
-		)
-		return serrors.Errorf("timed out connecting to %q", addr)
-	default:
-		return nil
+type waitResult struct {
+	// Ok returns whether the operation was successful.
+	Ok bool
+	// FatalErr indicates the retry loops should end immediately.
+	FatalErr error
+}
+
+func waitAndRetry(
+	ctx context.Context,
+	waitFunc func(context.Context) waitResult,
+) error {
+	// In an ideal world, this is configurable. Without making any breaking
+	// changes, this is probably a reasonable interval compared to the previous
+	// behavior of "make a new request as soon as the old one finished".
+	interval := 100 * time.Millisecond
+
+	var tick <-chan time.Time
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	result := make(chan waitResult, 1)
+
+	go func() { result <- waitFunc(ctx) }()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return context.Cause(ctx)
+		case got := <-result:
+			switch {
+			case got.FatalErr != nil:
+				return got.FatalErr
+			case got.Ok:
+				return nil
+			default:
+				tick = ticker.C
+			}
+		case <-tick:
+			tick = nil
+			go func() { result <- waitFunc(ctx) }()
+		}
 	}
 }

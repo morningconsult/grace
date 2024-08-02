@@ -144,9 +144,9 @@ func Test_Wait(t *testing.T) {
 		)
 		require.Error(t, err)
 
-		wantError := fmt.Sprintf("timed out connecting to %q", addr1)
+		wantError := fmt.Sprintf("connecting to %q: failed to connect within 50ms", addr1)
 		if strings.Contains(err.Error(), addr2) {
-			wantError = fmt.Sprintf("timed out connecting to %q", addr2)
+			wantError = fmt.Sprintf("connecting to %q: failed to connect within 50ms", addr2)
 		}
 		require.EqualError(t, err, wantError)
 	})
@@ -187,7 +187,7 @@ func Test_Wait(t *testing.T) {
 		case strings.Contains(err.Error(), addr3):
 			wantAddr = addr3
 		}
-		require.EqualError(t, err, fmt.Sprintf("timed out connecting to %q", wantAddr))
+		require.EqualError(t, err, fmt.Sprintf("connecting to %q: failed to connect within 50ms", wantAddr))
 	})
 
 	t.Run("success unix", func(t *testing.T) {
@@ -215,7 +215,7 @@ func Test_Wait(t *testing.T) {
 			50*time.Millisecond,
 			grace.WithWaitForUnix(socket),
 		)
-		require.EqualError(t, err, fmt.Sprintf("timed out connecting to %q", socket))
+		require.EqualError(t, err, fmt.Sprintf("connecting to %q: failed to connect within 50ms", socket))
 	})
 
 	t.Run("success unix http", func(t *testing.T) {
@@ -265,7 +265,7 @@ func Test_Wait(t *testing.T) {
 			50*time.Millisecond,
 			grace.WithWaitForUnixHTTP(socket, "/foo/bar"),
 		)
-		require.EqualError(t, err, `timed out connecting to "http://unix/foo/bar"`)
+		require.EqualError(t, err, `connecting to "http://unix/foo/bar": failed to connect within 50ms`)
 	})
 }
 
