@@ -6,7 +6,6 @@ issues:
       linters:
         - bodyclose
         - gocognit
-        - goconst
         - gocyclo
         - gosec
         - lll
@@ -23,9 +22,6 @@ issues:
       text: 'G104: Errors unhandled'
     - linters: [gosec]
       text: 'G307: Deferring unsafe method'
-    # Not a good rule since it ignores defaults
-    - linters: [gosec]
-      text: 'G112: Potential Slowloris Attack because ReadHeaderTimeout is not configured in the http.Server'
 
     # Contexts are best assigned defensively
     - linters: [ineffassign]
@@ -44,10 +40,9 @@ run:
 linters:
   enable:
     - bodyclose
+    - copyloopvar
     - errcheck
     - errchkjson
-    - exportloopref
-    - goconst
     - gocognit
     - gocritic
     - gocyclo
@@ -55,12 +50,16 @@ linters:
     - gofumpt
     - goimports
     - gosec
+    - intrange
     - lll
     - misspell
     - nakedret
     - nolintlint
+    - perfsprint
     - prealloc
     - revive
+    - sloglint
+    - testifylint
     - unconvert
     - unparam
 
@@ -82,28 +81,27 @@ linters-settings:
   gocognit:
     min-complexity: 10
 
-  goconst:
-    min-len: 0
-    min-occurrences: 3
-
-  gocritic:
-    disabled-checks:
-      - appendAssign
-
   gocyclo:
     min-complexity: 10
 
   goimports:
     local-prefixes: github.com/morningconsult/grace
 
-  golint:
-    min-confidence: 0
-
   govet:
-    check-shadowing: true
+    enable:
+      - shadow
 
   nakedret:
     max-func-lines: 0
 
   revive:
     confidence: 0
+
+  sloglint:
+    args-on-sep-lines: true
+
+  testifylint:
+    enable-all: true
+    disable:
+      # Disallows valid use
+      - require-error
