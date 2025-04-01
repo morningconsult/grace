@@ -37,7 +37,7 @@ func newHealthHandler(
 
 	mux.HandleFunc(livenessEndpoint, func(rw http.ResponseWriter, _ *http.Request) {
 		rw.Header().Set("Content-Type", "application/json")
-		io.WriteString(rw, `{"healthy":true}`) //nolint: errcheck
+		io.WriteString(rw, `{"healthy":true}`)
 	})
 
 	mux.HandleFunc(readinessEndpoint, func(rw http.ResponseWriter, r *http.Request) {
@@ -64,12 +64,12 @@ func newHealthHandler(
 		if err := g.Wait(); err != nil {
 			rw.Header().Set("Content-Type", "application/json")
 			rw.WriteHeader(http.StatusInternalServerError)
-			io.WriteString(rw, `{"ready":false}`) //nolint: errcheck
+			io.WriteString(rw, `{"ready":false}`)
 			return
 		}
 
 		rw.Header().Set("Content-Type", "application/json")
-		io.WriteString(rw, `{"ready":true}`) //nolint: errcheck
+		io.WriteString(rw, `{"ready":true}`)
 	})
 
 	return mux

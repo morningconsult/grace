@@ -1,3 +1,4 @@
+// Package grace starts and stops applications gracefully.
 package grace
 
 import (
