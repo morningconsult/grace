@@ -29,7 +29,7 @@ func Example_minimal() {
 	// shutdown server.
 	g := grace.New(ctx, grace.WithServer("localhost:9090", httpHandler))
 	if err := g.Run(ctx); err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 
 	// Output:
@@ -69,7 +69,7 @@ func Example_minimal_with_healthcheck() {
 	)
 
 	if err := g.Run(ctx); err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 
 	// Output:
@@ -84,7 +84,7 @@ func Example_full() {
 	// before proceeding with setting up database connections and such.
 	err := grace.Wait(ctx, 10*time.Second, grace.WithWaitForTCP("example.com:80"))
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 
 	// Set up database pools, other application things, server handlers,
@@ -154,7 +154,7 @@ func Example_full() {
 	)
 
 	if err = g.Run(ctx); err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 
 	// Output:
@@ -179,13 +179,13 @@ func ExampleWait() {
 
 	pg, err := net.Listen("tcp", "localhost:6379")
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 	defer pg.Close() //nolint:errcheck
 
 	redis, err := net.Listen("tcp", "localhost:5432")
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 	defer redis.Close() //nolint:errcheck
 
@@ -200,7 +200,7 @@ func ExampleWait() {
 		grace.WithWaitForHTTP("http://localhost:9200"),
 	)
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 
 	// Output:
